@@ -1,12 +1,13 @@
 export type Summon = {
 	thenDo: (self: Summon, this: (...any) -> (...any)) -> Summon,
 	thenCall: (self: Summon, f: (...any) -> (...any), ...any) -> Summon,
-	join: (self: Summon) -> (boolean, ...any | any),
+	join: (self: Summon) -> (boolean, ...any),
 	ifError: (self: Summon, thenDo: (...any) -> (...any)) -> Summon,
 	ifErrorCall: (self: Summon, f: (...any) -> (...any), ...any) -> Summon,
 	alwaysDo: (self: Summon, this: (...any) -> (...any), ...any) -> Summon,
 	halt: (self: Summon) -> (),
 	timeout: (self: Summon, duration: number) -> Summon, 
+	halted: boolean,
 }
 local mt
 local function wrapper(func, p, summon)
@@ -19,7 +20,7 @@ local function wrapper(func, p, summon)
 		coroutine.resume(v)
 	end
 end
-local function spawn(func, ...): Summon
+local function spawn(func: (...any) -> (...any), ...): Summon
 	local summon = setmetatable({}, mt)
 	local p = table.pack(...)
 	summon.waiters = {}
@@ -49,8 +50,10 @@ local function _timeout(self, duration)
 		local idx = #self.waiters + 1
 		table.insert(self.waiters, running)
 		task.delay(duration, function()
-			table.remove(self.waiters, idx)
-			coroutine.resume(running)
+			if not self.future then
+				table.remove(self.waiters, idx)
+				coroutine.resume(running)
+			end
 		end)
 		coroutine.yield()
 	end
